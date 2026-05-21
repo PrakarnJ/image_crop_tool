@@ -121,6 +121,56 @@ run(
 
 ---
 
+## Utility — Batch rename
+
+A standalone CLI for renaming image files in a folder with a template. Useful
+for normalizing input filenames before cropping, or tidying up output stems.
+
+### Run
+
+```sh
+# Renumber every image in ./input as vacation_001.jpg, vacation_002.jpg, ...
+python -m src.rename --folder ./input --to "vacation_{n:03d}{ext}"
+
+# Only files matching a glob, starting the counter at 100
+python -m src.rename --match "IMG_*.jpg" --to "trip_{n}{ext}" --start 100
+
+# Preview first — nothing is written
+python -m src.rename --to "img_{n:04d}{ext}" --dry-run
+
+# Sort by modification time instead of name (numbering follows file age)
+python -m src.rename --sort mtime --to "shot_{n:03d}{ext}"
+```
+
+### Template tokens
+
+| Token   | Meaning                                              |
+|---------|------------------------------------------------------|
+| `{n}`   | Running counter; supports format specs (`{n:03d}`)   |
+| `{stem}`| Original filename stem (no extension)                |
+| `{ext}` | Original extension including the leading dot         |
+
+### Safety
+
+- Refuses to overwrite any destination that exists outside the rename set —
+  the whole plan aborts before any file is touched.
+- Two-pass execution via temp names handles cycles (`a.jpg ↔ b.jpg` swap).
+- `--dry-run` shows the full plan without changing the filesystem.
+
+### CLI flags
+
+| Flag        | Default    | Description                                            |
+|-------------|------------|--------------------------------------------------------|
+| `--folder`  | `./input`  | Folder to operate on                                   |
+| `--match`   | `*`        | Glob filter applied before numbering                   |
+| `--to`      | _required_ | Filename template (see tokens above)                   |
+| `--start`   | `1`        | Counter start value                                    |
+| `--sort`    | `name`     | `name` (alphabetical) or `mtime` (oldest first)        |
+| `--dry-run` | off        | Preview the plan; don't change files                   |
+| `--quiet`   | off        | Suppress INFO logging                                  |
+
+---
+
 ## Tests
 
 ```sh
@@ -129,8 +179,10 @@ pytest tests/
 
 Covers coordinate conversion (all drag directions, scale factors, clamping),
 collision-safe filename generation, padding math (fraction + pixel forms,
-clamping at image edges), and COCO class-name parsing. The YOLO inference path
-itself isn't unit-tested — it requires the model weights and a CV stack.
+clamping at image edges), COCO class-name parsing, and the rename utility
+(template formatting, plan validation, cyclic swaps, dry-run). The YOLO
+inference path itself isn't unit-tested — it requires the model weights and a
+CV stack.
 
 ## Screenshot
 
