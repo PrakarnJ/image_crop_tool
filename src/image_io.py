@@ -1,7 +1,7 @@
 """Folder scanning, image loading, and crop-save with collision-safe naming."""
 
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from PIL import Image, ImageOps
 
@@ -49,14 +49,19 @@ def save_crop(
     source_name: str,
     crop_index: int,
     box: Tuple[int, int, int, int],
+    label: Optional[str] = None,
 ) -> Path:
-    """Crop `image` to `box` and save it under `output_folder` using the naming scheme
-    `<source-stem>_crop<N><source-ext>`, sidestepping collisions. Returns the actual
-    path written. Creates the output folder if missing."""
+    """Crop `image` to `box` and save it under `output_folder`. Naming scheme:
+    `<stem>_crop<N><ext>` by default, or `<stem>_<label>_crop<N><ext>` when `label`
+    is given (used by v2 to embed the detected class). Returns the actual path
+    written. Creates the output folder if missing."""
     output_folder = Path(output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
     src = Path(source_name)
-    desired = f"{src.stem}_crop{crop_index}{src.suffix}"
+    if label:
+        desired = f"{src.stem}_{label}_crop{crop_index}{src.suffix}"
+    else:
+        desired = f"{src.stem}_crop{crop_index}{src.suffix}"
     existing = {p.name for p in output_folder.iterdir() if p.is_file()}
     final_name = next_available_filename(desired, existing)
     out_path = output_folder / final_name
