@@ -23,19 +23,86 @@ from .image_io import load_image, save_crop, scan_input_folder
 # parse_classes() can work without importing torch / loading weights — keeps
 # unit tests light and CI green on machines without the CV stack installed.
 COCO_NAMES: List[str] = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
-    "truck", "boat", "traffic light", "fire hydrant", "stop sign",
-    "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag",
-    "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
-    "baseball bat", "baseball glove", "skateboard", "surfboard",
-    "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon",
-    "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
-    "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant",
-    "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote",
-    "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
-    "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-    "hair drier", "toothbrush",
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
 ]
 
 Box = Tuple[int, int, int, int]
@@ -45,6 +112,7 @@ log = logging.getLogger("auto_crop")
 
 
 # --- Pure helpers (unit-tested without YOLO) ---------------------------------
+
 
 def parse_classes(spec: Optional[str]) -> Optional[List[int]]:
     """Convert a comma-separated COCO class-name string into a sorted list of
@@ -101,26 +169,48 @@ def pad_box(box: Box, pad_spec: PadSpec, image_size: Tuple[int, int]) -> Box:
 
 # --- CLI ---------------------------------------------------------------------
 
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m src.auto_crop",
         description="Batch auto-crop images using a YOLO detector.",
     )
     p.add_argument("--input", default="./input", help="Input folder (default: ./input)")
-    p.add_argument("--output", default="./output", help="Output folder (default: ./output)")
-    p.add_argument("--model", default="yolov8n.pt",
-                   help="Ultralytics weights (default: yolov8n.pt; auto-downloaded)")
-    p.add_argument("--classes", default=None,
-                   help="Comma-separated COCO class names to keep (default: all)")
-    p.add_argument("--conf", type=float, default=0.25,
-                   help="Minimum detection confidence (default: 0.25)")
-    p.add_argument("--pad", default="0.10",
-                   help='Padding around each detection: fraction (e.g. "0.10") '
-                        'or absolute pixels (e.g. "20px"). Default: 0.10')
-    p.add_argument("--device", default=None,
-                   help="cpu | cuda | mps (default: Ultralytics auto-detect)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Print what would be written without creating files")
+    p.add_argument(
+        "--output", default="./output", help="Output folder (default: ./output)"
+    )
+    p.add_argument(
+        "--model",
+        default="yolov8n.pt",
+        help="Ultralytics weights (default: yolov8n.pt; auto-downloaded)",
+    )
+    p.add_argument(
+        "--classes",
+        default=None,
+        help="Comma-separated COCO class names to keep (default: all)",
+    )
+    p.add_argument(
+        "--conf",
+        type=float,
+        default=0.25,
+        help="Minimum detection confidence (default: 0.25)",
+    )
+    p.add_argument(
+        "--pad",
+        default="0.10",
+        help='Padding around each detection: fraction (e.g. "0.10") '
+        'or absolute pixels (e.g. "20px"). Default: 0.10',
+    )
+    p.add_argument(
+        "--device",
+        default=None,
+        help="cpu | cuda | mps (default: Ultralytics auto-detect)",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print what would be written without creating files",
+    )
     p.add_argument("--quiet", action="store_true", help="Suppress INFO logging")
     return p
 
@@ -156,6 +246,7 @@ def run(
     # Lazy import: keeps `import src.auto_crop` cheap (and possible) when
     # ultralytics/torch aren't installed — useful for unit tests.
     from ultralytics import YOLO  # type: ignore
+
     model = YOLO(model_name)
 
     total_crops = 0
@@ -189,7 +280,11 @@ def run(
                 continue
             for i in range(len(boxes)):
                 cls_id = int(boxes.cls[i].item())
-                cls_name = COCO_NAMES[cls_id] if 0 <= cls_id < len(COCO_NAMES) else f"class{cls_id}"
+                cls_name = (
+                    COCO_NAMES[cls_id]
+                    if 0 <= cls_id < len(COCO_NAMES)
+                    else f"class{cls_id}"
+                )
                 xyxy = boxes.xyxy[i].tolist()
                 raw_box = tuple(int(round(v)) for v in xyxy)
                 padded = pad_box(raw_box, pad, img.size)
@@ -199,14 +294,18 @@ def run(
                 per_class_index[cls_name] = per_class_index.get(cls_name, 0) + 1
                 idx = per_class_index[cls_name]
                 if not dry_run:
-                    save_crop(img, output_folder, img_path.name, idx, padded, label=cls_name)
+                    save_crop(
+                        img, output_folder, img_path.name, idx, padded, label=cls_name
+                    )
 
                 per_class_count[cls_name] = per_class_count.get(cls_name, 0) + 1
                 total_crops += 1
 
         n = sum(per_class_count.values())
         if per_class_count:
-            breakdown = ", ".join(f"{k}×{v}" for k, v in sorted(per_class_count.items()))
+            breakdown = ", ".join(
+                f"{k}×{v}" for k, v in sorted(per_class_count.items())
+            )
             log.info("%s: %d crops (%s)", img_path.name, n, breakdown)
         else:
             log.info("%s: 0 crops", img_path.name)
@@ -214,7 +313,10 @@ def run(
     elapsed = time.time() - start
     log.info(
         "Done: %d image(s), %d crop(s), %d skipped, %.2fs",
-        len(images), total_crops, skipped, elapsed,
+        len(images),
+        total_crops,
+        skipped,
+        elapsed,
     )
 
     return 1 if skipped == len(images) else 0
@@ -229,9 +331,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         log.error("%s", e)
         return 2
     # Reconstruct the class-name list for the run() API (simpler signature there).
-    class_names = (
-        [COCO_NAMES[i] for i in class_ids] if class_ids is not None else None
-    )
+    class_names = [COCO_NAMES[i] for i in class_ids] if class_ids is not None else None
     return run(
         input_folder=args.input,
         output_folder=args.output,
