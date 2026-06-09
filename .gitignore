@@ -26,3 +26,6 @@ htmlcov/
 # Project working folders (user can override; defaults live here)
 input/
 output/
+
+# Claude Code worktrees (ephemeral, should never be committed)
+.claude/worktrees/
