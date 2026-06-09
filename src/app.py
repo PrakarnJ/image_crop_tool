@@ -10,6 +10,7 @@ from PIL import Image
 
 from .canvas_view import CanvasView
 from .image_io import load_image, save_crop, scan_input_folder
+from .video_dialog import VideoExtractDialog
 
 
 class App:
@@ -44,6 +45,7 @@ class App:
             ("Skip", self.skip_image),
             ("Undo (u)", self.undo),
             ("Clear (c)", self.clear_all),
+            ("Video → Frames", self.open_video_extract),
         ]
         for label, cmd in buttons:
             tk.Button(toolbar, text=label, command=cmd).pack(side=tk.LEFT, padx=2, pady=2)
@@ -194,6 +196,10 @@ class App:
 
     def clear_all(self) -> None:
         self.canvas.clear_rects()
+
+    def open_video_extract(self) -> None:
+        """Open the batch video-frame extraction dialog (videos in → images out)."""
+        VideoExtractDialog(self.root, self.input_folder, self.output_folder)
 
 
 def main() -> None:

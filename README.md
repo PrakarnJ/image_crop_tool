@@ -3,7 +3,8 @@
 A small Pillow-based image batch-cropper with two modes:
 
 - **v1 — manual GUI** (`src/app.py`): a Tkinter window where you draw rectangles
-  on each image and save them as separate files.
+  on each image and save them as separate files. Also includes a **Video → Frames**
+  tool that extracts frames from a folder of videos into image files.
 - **v2 — automated batch** (`src/auto_crop.py`): a headless CLI that runs an
   Ultralytics YOLO detector over a folder and saves one crop per detected object.
 
@@ -13,8 +14,11 @@ A small Pillow-based image batch-cropper with two modes:
 pip install -r requirements.txt
 ```
 
-This installs Pillow (used by both modes) and `ultralytics` (only needed for v2;
-pulls torch and OpenCV). For v1 alone, Pillow is sufficient.
+This installs Pillow (used by both modes), `ultralytics` (only needed for v2;
+pulls torch and OpenCV), and `opencv-python` (needed for the **Video → Frames**
+feature; `pip install opencv-python`). For v1 image cropping alone, Pillow is
+sufficient — OpenCV is imported lazily and only required once you extract video
+frames.
 
 Tkinter ships with Python on macOS and Windows. On some Linux distros you need
 `sudo apt install python3-tk`. On macOS with Homebrew Python it's a separate formula:
@@ -57,6 +61,32 @@ image mode are preserved (JPEG-incompatible alpha channels are flattened to RGB)
 | `u`   | Undo last rectangle                          |
 | `c`   | Clear all rectangles on the current image    |
 | `Esc` | Cancel a drag in progress                    |
+
+### Video → Frames
+
+The **Video → Frames** toolbar button opens a dialog that turns a folder of
+videos into image files — useful for harvesting still frames to crop afterwards.
+
+1. Pick a **video folder** (the dialog lists every video it finds) and an
+   **output folder**.
+2. Set the sampling interval (**every _N_ seconds**) and the image format
+   (`.jpg` or `.png`).
+3. Click **Extract All Frames**. Decoding runs on a background thread with a live
+   progress bar; **Cancel** stops cleanly and keeps whatever was already written.
+
+Frames are saved as `<video-stem>_frame0001.jpg`, `<video-stem>_frame0002.jpg`,
+… (zero-padded, per video), with the same `_2`/`_3` collision suffixing as the
+crop modes. Supported containers: `.mp4 .mov .avi .mkv .webm .m4v .wmv .flv
+.mpg .mpeg`.
+
+Frames are read sequentially and every Nth one is kept (N = `fps × interval`);
+we avoid frame-seeking because it snaps to keyframes on most codecs. When a file
+reports no/garbage fps (some webm/streaming files report `0`/`NaN`), a default of
+30 fps is assumed so a single clip can't silently dump thousands of images.
+
+This feature needs **OpenCV**: `pip install opencv-python`. It's imported lazily,
+so the rest of the GUI works without it; you'll get a clear install message if you
+try to extract without it.
 
 ---
 
@@ -179,10 +209,12 @@ pytest tests/
 
 Covers coordinate conversion (all drag directions, scale factors, clamping),
 collision-safe filename generation, padding math (fraction + pixel forms,
-clamping at image edges), COCO class-name parsing, and the rename utility
-(template formatting, plan validation, cyclic swaps, dry-run). The YOLO
-inference path itself isn't unit-tested — it requires the model weights and a
-CV stack.
+clamping at image edges), COCO class-name parsing, the rename utility
+(template formatting, plan validation, cyclic swaps, dry-run), and the
+video-frame math (folder scanning, frame-step including the NaN/0-fps fallback,
+frame filenames). The YOLO inference path and the cv2 video-decode path aren't
+unit-tested — they require model weights / OpenCV and real media; the cv2 path
+was validated end-to-end with a generated test clip.
 
 ## Screenshot
 
