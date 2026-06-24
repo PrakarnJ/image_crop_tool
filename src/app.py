@@ -6,6 +6,7 @@ from tkinter import ttk
 from .ui_manual_crop import ManualCropTab
 from .ui_auto_crop import AutoCropTab
 from .ui_rename import RenameTab
+from .ui_color_augment import ColorAugmentTab
 
 
 class App:
@@ -17,6 +18,7 @@ class App:
         ManualCropTab(nb, root)
         AutoCropTab(nb)
         RenameTab(nb)
+        ColorAugmentTab(nb)
 
 
 def main() -> None:

@@ -59,11 +59,11 @@ class AutoCropTab(ttk.Frame):
         self._input_var = tk.StringVar(value="./input")
         self._output_var = tk.StringVar(value="./output")
         self._model_var = tk.StringVar(value="yolov8n.pt")
-        self._classes_var = tk.StringVar(value="")
         self._conf_var = tk.DoubleVar(value=0.25)
         self._pad_var = tk.StringVar(value="0.10")
         self._device_var = tk.StringVar(value="")
         self._dry_run_var = tk.BooleanVar(value=False)
+        self._class_id_list: list = []  # parallel to listbox rows; holds int class IDs
 
         row = 0
 
@@ -98,18 +98,34 @@ class AutoCropTab(ttk.Frame):
         ttk.Entry(form, textvariable=self._model_var, width=40).grid(
             row=row, column=1, sticky="ew", pady=3
         )
+        model_btn_frame = ttk.Frame(form)
+        model_btn_frame.grid(row=row, column=2, padx=(4, 0), pady=3, sticky="w")
+        ttk.Button(model_btn_frame, text="Browse…", command=self._browse_model).pack(side=tk.LEFT, padx=(0, 4))
+        self._load_btn = ttk.Button(model_btn_frame, text="Load Model", command=self._load_model)
+        self._load_btn.pack(side=tk.LEFT)
         row += 1
 
         # --- Classes ------------------------------------------------------------
         ttk.Label(form, text="Classes:").grid(
-            row=row, column=0, sticky="e", padx=(0, 4), pady=3
+            row=row, column=0, sticky="ne", padx=(0, 4), pady=3
         )
-        ttk.Entry(form, textvariable=self._classes_var, width=40).grid(
-            row=row, column=1, sticky="ew", pady=3
+        class_list_frame = ttk.Frame(form)
+        class_list_frame.grid(row=row, column=1, sticky="nsew", pady=3)
+        self._class_lb = tk.Listbox(
+            class_list_frame, selectmode=tk.MULTIPLE, height=5, exportselection=False
         )
-        ttk.Label(form, text="comma-separated, empty = all", foreground="gray").grid(
-            row=row, column=2, sticky="w", padx=(4, 0), pady=3
-        )
+        class_vsb = ttk.Scrollbar(class_list_frame, orient="vertical", command=self._class_lb.yview)
+        self._class_lb.config(yscrollcommand=class_vsb.set)
+        self._class_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        class_vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        class_ctrl = ttk.Frame(form)
+        class_ctrl.grid(row=row, column=2, sticky="nw", padx=(4, 0), pady=3)
+        ttk.Button(class_ctrl, text="All", width=6, command=self._select_all_classes).pack(anchor="w")
+        ttk.Button(class_ctrl, text="Clear", width=6, command=self._clear_classes).pack(anchor="w", pady=(2, 6))
+        self._class_status = ttk.Label(class_ctrl, text="Load a model\nfirst", foreground="gray", wraplength=110)
+        self._class_status.pack(anchor="w")
+        classes_row = row
         row += 1
 
         # --- Confidence ---------------------------------------------------------
@@ -167,8 +183,8 @@ class AutoCropTab(ttk.Frame):
         self._run_btn = ttk.Button(form, text="Run Auto Crop", command=self._on_run)
         self._run_btn.grid(row=row, column=1, sticky="w", pady=(8, 4))
 
-        # Allow column 1 to expand when the window is resized
         form.columnconfigure(1, weight=1)
+        form.rowconfigure(classes_row, weight=1)
 
     def _build_log(self, parent: ttk.Frame) -> None:
         ttk.Label(parent, text="Log:").pack(anchor="w", padx=4)
@@ -193,6 +209,50 @@ class AutoCropTab(ttk.Frame):
         if folder:
             self._output_var.set(folder)
 
+    def _browse_model(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Choose model weights",
+            filetypes=[("YOLO weights", "*.pt"), ("All files", "*.*")],
+        )
+        if path:
+            self._model_var.set(path)
+
+    def _load_model(self) -> None:
+        model_name = self._model_var.get().strip() or "yolov8n.pt"
+        self._load_btn.config(state="disabled")
+        self._class_status.config(text="Loading…", foreground="gray")
+        self._class_lb.delete(0, "end")
+        threading.Thread(target=self._load_model_worker, args=(model_name,), daemon=True).start()
+
+    def _load_model_worker(self, model_name: str) -> None:
+        try:
+            from ultralytics import YOLO  # type: ignore
+            model = YOLO(model_name)
+            names: dict = dict(model.names)
+            self.after(0, lambda: self._populate_classes(names, model_name))
+        except Exception as e:  # noqa: BLE001
+            msg = str(e)
+            self.after(0, lambda: self._class_status.config(text=f"Load failed:\n{msg}", foreground="red"))
+            self.after(0, lambda: self._load_btn.config(state="normal"))
+
+    def _populate_classes(self, names: dict, model_name: str) -> None:
+        self._class_id_list = sorted(names.keys())
+        self._class_lb.delete(0, "end")
+        for cls_id in self._class_id_list:
+            self._class_lb.insert("end", f"{cls_id}: {names[cls_id]}")
+        stem = Path(model_name).name
+        self._class_status.config(
+            text=f"{stem}\n{len(names)} class(es)\n(empty sel. = all)",
+            foreground="#4caf50",
+        )
+        self._load_btn.config(state="normal")
+
+    def _select_all_classes(self) -> None:
+        self._class_lb.select_set(0, "end")
+
+    def _clear_classes(self) -> None:
+        self._class_lb.selection_clear(0, "end")
+
     # ------------------------------------------------------------------ Log helpers
 
     def _clear_log(self) -> None:
@@ -216,15 +276,11 @@ class AutoCropTab(ttk.Frame):
         input_folder = self._input_var.get().strip() or "./input"
         output_folder = self._output_var.get().strip() or "./output"
         model_name = self._model_var.get().strip() or "yolov8n.pt"
-        raw_classes = self._classes_var.get().strip()
-        classes = (
-            [s.strip() for s in raw_classes.split(",") if s.strip()]
-            if raw_classes
-            else None
-        )
+        selected = list(self._class_lb.curselection())
+        class_ids = [self._class_id_list[i] for i in selected] if selected else None
         conf = float(self._conf_var.get())
         pad = self._pad_var.get().strip() or "0.10"
-        device = self._device_var.get().strip() or None  # "" -> None for run()
+        device = self._device_var.get().strip() or None
         dry_run = self._dry_run_var.get()
 
         self._run_btn.config(state="disabled")
@@ -232,7 +288,7 @@ class AutoCropTab(ttk.Frame):
 
         threading.Thread(
             target=self._worker,
-            args=(input_folder, output_folder, model_name, classes, conf, pad, device, dry_run),
+            args=(input_folder, output_folder, model_name, class_ids, conf, pad, device, dry_run),
             daemon=True,
         ).start()
 
@@ -241,7 +297,7 @@ class AutoCropTab(ttk.Frame):
         input_folder: str,
         output_folder: str,
         model_name: str,
-        classes,
+        class_ids,
         conf: float,
         pad: str,
         device,
@@ -260,7 +316,7 @@ class AutoCropTab(ttk.Frame):
                 input_folder=input_folder,
                 output_folder=output_folder,
                 model_name=model_name,
-                classes=classes,
+                class_ids=class_ids,
                 conf=conf,
                 pad=pad,
                 device=device,

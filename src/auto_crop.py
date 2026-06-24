@@ -230,13 +230,18 @@ def run(
     conf: float = 0.25,
     pad: PadSpec = 0.10,
     device: Optional[str] = None,
+    class_ids: Optional[Sequence[int]] = None,
     dry_run: bool = False,
 ) -> int:
     """Programmatic entry point. Returns process exit code (0 = ok, 1 = all failed)."""
     input_folder = Path(input_folder)
     output_folder = Path(output_folder)
 
-    class_ids = parse_classes(",".join(classes)) if classes else None
+    # class_ids (pre-resolved from model) takes precedence over names-based classes.
+    if class_ids is not None:
+        resolved_ids: Optional[List[int]] = list(class_ids)
+    else:
+        resolved_ids = parse_classes(",".join(classes)) if classes else None
 
     images = scan_input_folder(input_folder)
     if not images:
@@ -270,7 +275,7 @@ def run(
             continue
 
         try:
-            results = model.predict(img, conf=conf, classes=class_ids, device=device, verbose=False)
+            results = model.predict(img, conf=conf, classes=resolved_ids, device=device, verbose=False)
         except Exception as e:  # noqa: BLE001
             log.warning("Skipping %s: inference failed (%s)", img_path.name, e)
             skipped += 1
