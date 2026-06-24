@@ -245,7 +245,15 @@ def run(
 
     # Lazy import: keeps `import src.auto_crop` cheap (and possible) when
     # ultralytics/torch aren't installed — useful for unit tests.
+    import torch
     from ultralytics import YOLO  # type: ignore
+
+    # Ultralytics auto-detects via device_count(), which can return 1 even when
+    # is_available() is False (driver installed but wrong PyTorch CUDA build).
+    # Resolve explicitly so we never hand an unusable CUDA device to the model.
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        log.info("Device auto-selected: %s", device)
 
     model = YOLO(model_name)
 
@@ -262,10 +270,7 @@ def run(
             continue
 
         try:
-            predict_kwargs = dict(conf=conf, classes=class_ids, verbose=False)
-            if device is not None:
-                predict_kwargs["device"] = device
-            results = model.predict(img, **predict_kwargs)
+            results = model.predict(img, conf=conf, classes=class_ids, device=device, verbose=False)
         except Exception as e:  # noqa: BLE001
             log.warning("Skipping %s: inference failed (%s)", img_path.name, e)
             skipped += 1
